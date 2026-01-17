@@ -218,7 +218,6 @@ const App: React.FC = () => {
       playGhostDialogue(ghost.dialogue, state.level, ghost.type === 'FRIENDLY');
     } catch (e) {
       console.error(e);
-      // Fail gracefully back to normal flow
       setState(prev => ({ ...prev, status: 'PLAYING' }));
     } finally {
       setIsLoading(false);
@@ -251,13 +250,18 @@ const App: React.FC = () => {
   const handleChoice = async (choice: any) => {
     resumeAudio();
     playSFX('CLICK');
+
+    // FIX: If user lacks an item, we MUST change status to 'INTERACTION' or 'LEVEL_FAILED' 
+    // so the modal actually appears with the explanation.
     if (choice.itemRequired && !state.inventory.includes(choice.itemRequired)) {
-      setConsequence(`A spectral chill paralyzes you! You need the ${choice.itemRequired}.`);
+      setConsequence(`A spectral chill paralyzes you! You need the ${choice.itemRequired} to do that.`);
       playSFX('FAILURE');
+      // We count this as a soft failure so the user can try again
+      setState(prev => ({ ...prev, status: 'INTERACTION' }));
       return;
     }
+
     setConsequence(choice.consequence);
-    
     const wasCorrect = choice.isCorrect;
     const entryPromise = generateJournalEntry(state.level, LEVELS[state.level - 1].title, choice.text, wasCorrect, state.inventory);
 
@@ -291,6 +295,19 @@ const App: React.FC = () => {
   const getShadowIcon = (level: number) => {
     const icons = ['fa-ghost', 'fa-skull', 'fa-mask', 'fa-hat-wizard', 'fa-cloud'];
     return icons[(level - 1) % icons.length];
+  };
+
+  const getItemIcon = (itemName: string) => {
+    switch(itemName) {
+      case 'Rusted Key': return 'fa-key';
+      case 'Old Map': return 'fa-map';
+      case 'Brass Flashlight': return 'fa-flashlight';
+      case 'Winding Key': return 'fa-clock';
+      case 'Silver Locket': return 'fa-heart';
+      case 'Mirror Shard': return 'fa-diamond';
+      case 'Cellar Key': return 'fa-key';
+      default: return 'fa-box';
+    }
   };
 
   const startIntro = () => {
@@ -375,12 +392,14 @@ const App: React.FC = () => {
             <h2 className="spooky-font text-3xl text-indigo-500">LEVEL {state.level}</h2>
             <h3 className="typewriter-font text-[9px] uppercase text-zinc-500 tracking-widest">{currentLvl.title}</h3>
           </div>
-          <div className="flex gap-4">
-            <button onClick={() => setIsJournalOpen(true)} className="bg-indigo-950/20 border border-indigo-500/20 px-5 py-2.5 rounded-full typewriter-font text-[11px] text-indigo-400">Journal</button>
-            <div className="flex gap-2">
-              {Array.from({ length: MAX_LIVES }).map((_, i) => (
-                <i key={i} className={`fa-solid fa-heart text-2xl ${i < state.lives ? 'text-red-900' : 'text-zinc-950'}`} />
-              ))}
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex gap-4">
+              <button onClick={() => setIsJournalOpen(true)} className="bg-indigo-950/20 border border-indigo-500/20 px-5 py-2.5 rounded-full typewriter-font text-[11px] text-indigo-400">Journal</button>
+              <div className="flex gap-2">
+                {Array.from({ length: MAX_LIVES }).map((_, i) => (
+                  <i key={i} className={`fa-solid fa-heart text-2xl ${i < state.lives ? 'text-red-900' : 'text-zinc-950'}`} />
+                ))}
+              </div>
             </div>
           </div>
         </header>
@@ -411,8 +430,17 @@ const App: React.FC = () => {
                 <h4 className="spooky-font text-3xl text-indigo-500 mb-8">{currentLvl.mysteryPrompt}</h4>
                 <div className="grid grid-cols-1 gap-4">
                   {currentLvl.choices.map((c, i) => (
-                    <button key={i} onClick={() => handleChoice(c)} className="text-left p-6 bg-white/5 border border-white/10 hover:bg-indigo-950/20 transition-all typewriter-font text-zinc-400 hover:text-white rounded-xl">
-                      {c.text}
+                    <button 
+                      key={i} 
+                      onClick={() => handleChoice(c)} 
+                      className={`text-left p-6 bg-white/5 border border-white/10 hover:bg-indigo-950/20 transition-all typewriter-font rounded-xl flex items-center justify-between group
+                        ${c.itemRequired && !state.inventory.includes(c.itemRequired) ? 'opacity-50 cursor-not-allowed' : 'text-zinc-400 hover:text-white'}
+                      `}
+                    >
+                      <span>{c.text}</span>
+                      {c.itemRequired && (
+                        <span className="text-[10px] text-indigo-900 uppercase tracking-tighter bg-indigo-500/10 px-2 py-1 rounded">Needs {c.itemRequired}</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -428,12 +456,26 @@ const App: React.FC = () => {
                   onClick={() => state.status === 'INTERACTION' ? nextLevel() : retry()} 
                   className="spooky-font text-5xl text-indigo-500 hover:text-white uppercase"
                 >
-                  [ CONTINUE ]
+                  {state.status === 'INTERACTION' ? '[ CONTINUE ]' : '[ TRY AGAIN ]'}
                 </button>
               </div>
             </div>
           )}
         </main>
+
+        {/* INVENTORY BAR */}
+        <footer className="h-20 flex items-center justify-center gap-6 px-12 border-t border-white/5 bg-black/80">
+          <span className="typewriter-font text-[10px] uppercase text-zinc-600 tracking-widest">Ace's Pockets:</span>
+          <div className="flex gap-4">
+            {state.inventory.length === 0 && <span className="typewriter-font text-zinc-800 italic text-sm">Empty...</span>}
+            {state.inventory.map((item, idx) => (
+              <div key={idx} className="flex items-center gap-2 px-3 py-1 bg-indigo-950/20 border border-indigo-500/10 rounded-full animate-bounce" style={{ animationDelay: `${idx * 0.1}s` }}>
+                <i className={`fa-solid ${getItemIcon(item)} text-indigo-500 text-xs`} />
+                <span className="typewriter-font text-[10px] text-zinc-300">{item}</span>
+              </div>
+            ))}
+          </div>
+        </footer>
       </div>
 
       <style>{`
@@ -442,6 +484,7 @@ const App: React.FC = () => {
         .animate-spectral-drift { animation: spectral-drift 8s ease-in-out infinite; }
         .animate-monstrous-loom { animation: monstrous-loom 6s ease-in-out infinite; }
         .game-container { cursor: crosshair; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
     </div>
   );
