@@ -3,7 +3,7 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Ghost, JournalEntry } from "../types";
 
 // Strict initialization as per world-class standards
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
 export const getSpectralEncounter = async (level: number, roomTitle: string, inventory: string[], ghostVibe: string): Promise<Ghost> => {
   const ghostSchema = {
