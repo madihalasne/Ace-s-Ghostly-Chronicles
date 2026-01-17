@@ -9,10 +9,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Special+Elite&display=swap" rel="stylesheet">
     <style>
-        body { 
+        body {
             background-color: #050505;
             color: #e2e8f0;
             overflow-x: hidden;
+            margin: 0;
         }
         .spooky-font {
             font-family: 'Creepster', cursive;
@@ -25,14 +26,14 @@
             50% { transform: translateY(-10px); }
             100% { transform: translateY(0px); }
         }
-        .float-ghost {
-            animation: float 3s ease-in-out infinite;
-        }
         .vignette {
             box-shadow: inset 0 0 150px rgba(0,0,0,1);
         }
         .text-glow {
             text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+        }
+        #root {
+            min-height: 100vh;
         }
     </style>
 <script type="importmap">
@@ -48,6 +49,7 @@
 </head>
 <body class="bg-black">
     <div id="root"></div>
+    <!-- This script tag is essential for the app to start -->
     <script type="module" src="./index.tsx"></script>
 </body>
 </html>

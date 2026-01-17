@@ -2,7 +2,27 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Ghost, JournalEntry } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+// Safer way to access environment variables without crashing the browser if 'process' is missing
+const getSafeApiKey = () => {
+  try {
+    // Try process.env first (standard for many build tools)
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+      return process.env.API_KEY;
+    }
+    // Try Vite's import.meta.env
+    if ((import.meta as any).env && (import.meta as any).env.VITE_API_KEY) {
+      return (import.meta as any).env.VITE_API_KEY;
+    }
+  } catch (e) {
+    console.warn("Could not automatically detect API key location.");
+  }
+  return "";
+};
+
+const apiKey = getSafeApiKey();
+const ai = new GoogleGenAI({ apiKey });
+
+export const hasValidKey = () => !!apiKey && apiKey.length > 10;
 
 export const getSpectralEncounter = async (level: number, roomTitle: string, inventory: string[], ghostVibe: string): Promise<Ghost> => {
   const ghostSchema = {
@@ -21,14 +41,15 @@ export const getSpectralEncounter = async (level: number, roomTitle: string, inv
 
   let relationshipContext = "";
   if (level <= 3) {
-    relationshipContext = "The ghosts are distant, cold, and suspicious. They see Ace as a mere intruder.";
+    relationshipContext = "The ghosts are distant, cold, and suspicious.";
   } else if (level <= 7) {
-    relationshipContext = "The ghosts are beginning to show their humanity. They feel a strange warmth from Ace's presence and speak with a hint of regret or longing.";
+    relationshipContext = "The ghosts are beginning to show their humanity and a strange warmth toward Ace.";
   } else {
-    relationshipContext = "The ghosts feel a deep bond with Ace. They see him as the final soul needed to complete the house's collection. Their dialogue should be soft, vulnerable, and almost familial, as they prepare him for his eternal stay.";
+    relationshipContext = "The ghosts feel a deep bond with Ace, welcoming him as the final soul needed for the collection.";
   }
 
   try {
+    if (!hasValidKey()) throw new Error("Key missing");
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `The character 'Ace' is in Level ${level}: '${roomTitle}'.
@@ -36,12 +57,7 @@ export const getSpectralEncounter = async (level: number, roomTitle: string, inv
       Ace currently carries: ${inventoryString}.
       Relationship Stage: ${relationshipContext}
       
-      Generate a ghost encounter. 
-      The ghost should have a specific name and a spooky but kid-appropriate appearance.
-      
-      CRITICAL: The dialogue and hint MUST reflect the progressive relationship. 
-      - Level 10 ghost should speak as if they are welcoming Ace to join them forever.
-      - Dialogue should be dramatic, atmospheric, and emotionally resonant.`,
+      Generate a ghost encounter. Use a spooky but kid-appropriate appearance.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: ghostSchema
@@ -54,13 +70,13 @@ export const getSpectralEncounter = async (level: number, roomTitle: string, inv
       type: (ghostData.type === 'FRIENDLY' || ghostData.type === 'MALEVOLENT') ? ghostData.type : 'MALEVOLENT'
     };
   } catch (error) {
-    console.error("Gemini failed:", error);
+    console.error("Gemini service unavailable, using fallback ghost:", error);
     return {
-      name: "The Nameless One",
+      name: "The Whispering Fog",
       type: "MALEVOLENT",
-      appearance: "A hovering shadow of grey mist.",
-      dialogue: "You do not belong in this house, child. But you will stay anyway.",
-      hint: "All paths here lead to the same cold grave."
+      appearance: "A cloud of swirling grey mist.",
+      dialogue: "You walk a lonely path, child. Be careful what you seek.",
+      hint: "The shadows grow longer as the clock ticks."
     };
   }
 };
@@ -69,20 +85,17 @@ export const generateJournalEntry = async (level: number, roomTitle: string, cho
   const schema = {
     type: Type.OBJECT,
     properties: {
-      content: { type: Type.STRING, description: "A short diary entry (2-3 sentences) from Ace's POV about what happened in this room." },
-      mood: { type: Type.STRING, description: "BRAVE, SCARED, or CURIOUS" }
+      content: { type: Type.STRING },
+      mood: { type: Type.STRING }
     },
     required: ["content", "mood"]
   };
 
   try {
+    if (!hasValidKey()) throw new Error("Key missing");
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Write a short journal entry for 'Ace' who just finished an encounter in '${roomTitle}' (Level ${level}).
-      He chose to: ${choiceMade}.
-      The outcome was: ${wasCorrect ? "Success" : "Failure"}.
-      He currently carries: ${inventory.join(", ") || "nothing"}.
-      The tone should be immersive, slightly eerie, and reflective of a child's inner thoughts in a haunted house.`,
+      contents: `Write a short journal entry for 'Ace' who just finished an encounter in '${roomTitle}'. He chose: ${choiceMade}. Tone: immersive, eerie.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: schema
@@ -91,18 +104,19 @@ export const generateJournalEntry = async (level: number, roomTitle: string, cho
     const data = JSON.parse(response.text || "{}");
     return { level, content: data.content, mood: data.mood as any, cluesFound: inventory };
   } catch (e) {
-    return { level, content: "The shadows here are strange. I keep moving, even if I'm afraid.", mood: "SCARED", cluesFound: inventory };
+    return { level, content: "The shadows here are strange. I can feel eyes on the back of my neck. I must keep moving.", mood: "SCARED", cluesFound: inventory };
   }
 };
 
 export const generateRoomImage = async (roomTitle: string, description: string): Promise<string | null> => {
   try {
+    if (!hasValidKey()) return null;
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [
           {
-            text: `A cinematic, ultra-detailed, dark fantasy concept art piece of a room inside a haunted manor called '${roomTitle}'. Story context: ${description}. The environment should be hauntingly beautiful, with eerie moonlight, swirling dust motes, and a heavy sense of mystery. Art style: gothic horror, atmospheric, 16:9, high contrast. Strictly NO humans or ghosts in the frame, just the environment itself.`,
+            text: `Cinematic, ultra-detailed gothic horror art of a haunted room called '${roomTitle}'. Story context: ${description}. Eerie moonlight, no humans or ghosts. 16:9 aspect ratio.`,
           },
         ],
       },
@@ -116,18 +130,16 @@ export const generateRoomImage = async (roomTitle: string, description: string):
     }
     return null;
   } catch (error) {
-    console.error("Room image generation failed:", error);
     return null;
   }
 };
 
 export const generateSpeech = async (text: string, level: number, isFriendly: boolean): Promise<string | null> => {
   try {
+    if (!hasValidKey()) return null;
     const voices = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'];
-    const voiceIndex = (level - 1) % voices.length;
-    const voice = voices[voiceIndex];
-
-    const tonePrefix = level > 7 ? 'Softly and welcomingly: ' : (isFriendly ? 'Kindly: ' : 'Threateningly: ');
+    const voice = voices[(level - 1) % voices.length];
+    const tonePrefix = level > 7 ? 'Softly: ' : (isFriendly ? 'Kindly: ' : 'Ghostly: ');
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
@@ -146,4 +158,4 @@ export const generateSpeech = async (text: string, level: number, isFriendly: bo
   } catch (error) {
     return null;
   }
-};
+}
