@@ -292,6 +292,7 @@ const App: React.FC = () => {
       playGhostDialogue(ghost.dialogue, state.level, ghost.type === 'FRIENDLY');
     } catch (e) {
       console.error(e);
+      setState(prev => ({ ...prev, status: 'PLAYING' }));
     } finally {
       setIsLoading(false);
     }
