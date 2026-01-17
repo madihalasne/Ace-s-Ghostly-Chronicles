@@ -276,44 +276,55 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLevelStart = async () => {
-    resumeAudio();
-    playSFX('CLICK');
-    setIsLoading(true);
-    const currentLvl = LEVELS[state.level - 1];
-    try {
-      const ghost = await getSpectralEncounter(state.level, currentLvl.title, state.inventory, currentLvl.ghostVibe);
-      const roomImg = await generateRoomImage(currentLvl.title, currentLvl.description);
-      
-      if (roomImg) setRoomImage(roomImg);
-      
-      setState(prev => ({ ...prev, currentGhost: ghost, status: 'PLAYING' }));
-      playSFX('GHOST');
-      playGhostDialogue(ghost.dialogue, state.level, ghost.type === 'FRIENDLY');
-    } catch (e) {
-      console.error(e);
-      setState(prev => ({ ...prev, status: 'PLAYING' }));
-    } finally {
-      setIsLoading(false);
-    }
-  };
+ const handleLevelStart = async (levelOverride?: number) => {
+  resumeAudio();
+  playSFX('CLICK');
+  setIsLoading(true);
 
-  const nextLevel = () => {
-    stopDialogue();
-    setConsequence(null);
-    setIsTransitioning(true);
-    playSFX('DOOR');
+  const lvlIndex = levelOverride ? levelOverride - 1 : state.level - 1;
+  const currentLvl = LEVELS[lvlIndex];
+
+  try {
+    const ghost = await getSpectralEncounter(state.level, currentLvl.title, state.inventory, currentLvl.ghostVibe);
+    const roomImg = await generateRoomImage(currentLvl.title, currentLvl.description);
     
-    setTimeout(() => {
-      setState(prev => ({
-        ...prev,
-        level: prev.level + 1,
-        status: 'LEVEL_START',
-        currentGhost: undefined
-      }));
-      setIsTransitioning(false);
-    }, 1500);
-  };
+    if (roomImg) setRoomImage(roomImg);
+    
+    setState(prev => ({
+      ...prev,
+      currentGhost: ghost,
+      status: 'PLAYING'
+    }));
+
+    playSFX('GHOST');
+    playGhostDialogue(ghost.dialogue, state.level, ghost.type === 'FRIENDLY');
+  } catch (e) {
+    console.error(e);
+    setState(prev => ({ ...prev, status: 'PLAYING' }));
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+const nextLevel = () => {
+  stopDialogue();
+  setConsequence(null);
+  setIsTransitioning(true);
+  playSFX('DOOR');
+
+  setTimeout(() => {
+    setState(prev => ({
+      ...prev,
+      level: prev.level + 1,
+      status: 'LEVEL_START',
+      currentGhost: undefined
+    }));
+    setIsTransitioning(false);
+
+    // Start the next level immediately after the transition
+    handleLevelStart(prev => prev.level + 1); 
+  }, 1500);
+};
 
   const retry = () => {
     stopDialogue();
@@ -324,41 +335,70 @@ const App: React.FC = () => {
     }));
   };
 
-  const handleChoice = async (choice: any) => {
-    resumeAudio();
-    playSFX('CLICK');
-    if (choice.itemRequired && !state.inventory.includes(choice.itemRequired)) {
-      setConsequence(`A spectral chill paralyzes you! You need the ${choice.itemRequired} to proceed through this mystery.`);
-      playSFX('FAILURE');
-      return;
-    }
-    setConsequence(choice.consequence);
-    
-    const wasCorrect = choice.isCorrect;
-    const entryPromise = generateJournalEntry(state.level, LEVELS[state.level - 1].title, choice.text, wasCorrect, state.inventory);
+ const handleChoice = async (choice: any) => {
+  resumeAudio();
+  playSFX('CLICK');
+  setConsequence(null); // clear old consequence
 
-    if (wasCorrect) {
-      playSFX('SUCCESS');
-      const newInventory = choice.itemFound ? [...state.inventory, choice.itemFound] : state.inventory;
-      if (choice.itemFound) playSFX('ITEM');
-      
-      if (state.level === 10) {
-        stopAmbient();
-        stopDialogue();
-        setTimeout(() => setState(prev => ({ ...prev, status: 'DEAD' })), 4000);
-      } else {
-        setState(prev => ({ ...prev, status: 'INTERACTION', inventory: newInventory }));
-      }
+  // Check if required item is missing
+  if (choice.itemRequired && !state.inventory.includes(choice.itemRequired)) {
+    setConsequence(
+      `A spectral chill paralyzes you! You need the ${choice.itemRequired} to proceed.`
+    );
+    playSFX('FAILURE');
+    return;
+  }
+
+  // Set consequence for choice
+  setConsequence(choice.consequence);
+
+  // Generate journal entry
+  const entryPromise = generateJournalEntry(
+    state.level,
+    LEVELS[state.level - 1].title,
+    choice.text,
+    choice.isCorrect,
+    state.inventory
+  );
+
+  if (choice.isCorrect) {
+    playSFX('SUCCESS');
+
+    // Update inventory if an item is found
+    const newInventory = choice.itemFound
+      ? [...state.inventory, choice.itemFound]
+      : state.inventory;
+    if (choice.itemFound) playSFX('ITEM');
+
+    // If last level, end game
+    if (state.level === 10) {
+      stopAmbient();
+      stopDialogue();
+      setTimeout(() => setState(prev => ({ ...prev, status: 'DEAD' })), 4000);
     } else {
-      playSFX('FAILURE');
-      const newLives = state.lives - 1;
-      setState(prev => ({ ...prev, lives: Math.max(0, newLives), status: 'LEVEL_FAILED' }));
+      // Correct choice → go to INTERACTION state (shows ADVANCE button)
+      setState(prev => ({
+        ...prev,
+        status: 'INTERACTION',
+        inventory: newInventory
+      }));
     }
+  } else {
+    // Wrong choice → lose a life
+    playSFX('FAILURE');
+    const newLives = state.lives - 1;
+    setState(prev => ({
+      ...prev,
+      lives: Math.max(0, newLives),
+      status: newLives > 0 ? 'LEVEL_FAILED' : 'DEAD'
+    }));
+  }
 
-    entryPromise.then(entry => {
-      setState(prev => ({ ...prev, journal: [...prev.journal, entry] }));
-    });
-  };
+  // Add journal entry to state once generated
+  entryPromise.then(entry => {
+    setState(prev => ({ ...prev, journal: [...prev.journal, entry] }));
+  });
+};
 
   const getGhostAnimationClass = (level: number, type?: 'FRIENDLY' | 'MALEVOLENT') => {
     if (type === 'FRIENDLY') {
