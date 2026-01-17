@@ -251,12 +251,9 @@ const App: React.FC = () => {
     resumeAudio();
     playSFX('CLICK');
 
-    // FIX: If user lacks an item, we MUST change status to 'INTERACTION' or 'LEVEL_FAILED' 
-    // so the modal actually appears with the explanation.
     if (choice.itemRequired && !state.inventory.includes(choice.itemRequired)) {
       setConsequence(`A spectral chill paralyzes you! You need the ${choice.itemRequired} to do that.`);
       playSFX('FAILURE');
-      // We count this as a soft failure so the user can try again
       setState(prev => ({ ...prev, status: 'INTERACTION' }));
       return;
     }
@@ -323,7 +320,7 @@ const App: React.FC = () => {
       <div className="game-container fixed inset-0 bg-black flex flex-col items-center justify-center p-6 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#0a0a1a_0%,_#000000_100%)] animate-pulse opacity-60" />
         <div className="z-10 text-center">
-          <h1 className="spooky-font text-6xl md:text-[8rem] text-indigo-600 mb-4 text-glow animate-bounce">
+          <h1 className="spooky-font text-6xl md:text-[8rem] text-indigo-600 mb-4 text-glow">
             Ace's Ghostly Chronicles
           </h1>
           <p className="typewriter-font text-indigo-900 tracking-[0.5em] uppercase mb-12 text-sm opacity-60 italic">"The shadows are waiting for you, Ace."</p>
@@ -483,7 +480,17 @@ const App: React.FC = () => {
         @keyframes monstrous-loom { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
         .animate-spectral-drift { animation: spectral-drift 8s ease-in-out infinite; }
         .animate-monstrous-loom { animation: monstrous-loom 6s ease-in-out infinite; }
-        .game-container { cursor: crosshair; }
+        
+        /* Custom Magic Wand Cursor */
+        .game-container { 
+          cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M6 26 L22 10' stroke='%23312e81' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M6 26 L22 10' stroke='%234f46e5' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='24' cy='8' r='4' fill='%23fbbf24'/%3E%3Cpath d='M24 2 L24 14 M18 8 L30 8' stroke='white' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") 24 8, auto;
+        }
+        
+        /* Ensure buttons feel clickable even with custom cursor */
+        button, a, [role="button"] {
+          cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M6 26 L22 10' stroke='%23312e81' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M6 26 L22 10' stroke='%236366f1' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='24' cy='8' r='5' fill='%23fbbf24'/%3E%3Cpath d='M24 0 L24 16 M16 8 L32 8' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") 24 8, pointer;
+        }
+
         .no-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
     </div>
