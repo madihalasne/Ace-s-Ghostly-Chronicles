@@ -2,27 +2,8 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Ghost, JournalEntry } from "../types";
 
-// Safer way to access environment variables without crashing the browser if 'process' is missing
-const getSafeApiKey = () => {
-  try {
-    // Try process.env first (standard for many build tools)
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-      return process.env.API_KEY;
-    }
-    // Try Vite's import.meta.env
-    if ((import.meta as any).env && (import.meta as any).env.VITE_API_KEY) {
-      return (import.meta as any).env.VITE_API_KEY;
-    }
-  } catch (e) {
-    console.warn("Could not automatically detect API key location.");
-  }
-  return "";
-};
-
-const apiKey = getSafeApiKey();
-const ai = new GoogleGenAI({ apiKey });
-
-export const hasValidKey = () => !!apiKey && apiKey.length > 10;
+// Strict initialization as per world-class standards
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getSpectralEncounter = async (level: number, roomTitle: string, inventory: string[], ghostVibe: string): Promise<Ghost> => {
   const ghostSchema = {
@@ -49,7 +30,6 @@ export const getSpectralEncounter = async (level: number, roomTitle: string, inv
   }
 
   try {
-    if (!hasValidKey()) throw new Error("Key missing");
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `The character 'Ace' is in Level ${level}: '${roomTitle}'.
@@ -70,7 +50,7 @@ export const getSpectralEncounter = async (level: number, roomTitle: string, inv
       type: (ghostData.type === 'FRIENDLY' || ghostData.type === 'MALEVOLENT') ? ghostData.type : 'MALEVOLENT'
     };
   } catch (error) {
-    console.error("Gemini service unavailable, using fallback ghost:", error);
+    console.error("Gemini service error, using fallback ghost:", error);
     return {
       name: "The Whispering Fog",
       type: "MALEVOLENT",
@@ -92,10 +72,9 @@ export const generateJournalEntry = async (level: number, roomTitle: string, cho
   };
 
   try {
-    if (!hasValidKey()) throw new Error("Key missing");
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Write a short journal entry for 'Ace' who just finished an encounter in '${roomTitle}'. He chose: ${choiceMade}. Tone: immersive, eerie.`,
+      contents: `Write a short journal entry for 'Ace' who just finished an encounter in '${roomTitle}'. He chose: ${choiceMade}. Tone: immersive, eerie, child-friendly mystery.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: schema
@@ -110,33 +89,36 @@ export const generateJournalEntry = async (level: number, roomTitle: string, cho
 
 export const generateRoomImage = async (roomTitle: string, description: string): Promise<string | null> => {
   try {
-    if (!hasValidKey()) return null;
+    // Generate image using the specialized image generation model
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [
           {
-            text: `Cinematic, ultra-detailed gothic horror art of a haunted room called '${roomTitle}'. Story context: ${description}. Eerie moonlight, no humans or ghosts. 16:9 aspect ratio.`,
+            text: `Cinematic, ultra-detailed gothic mystery art of a haunted manor room: '${roomTitle}'. Story context: ${description}. Eerie moonlight, dramatic shadows, mysterious atmosphere. No humans, no ghosts, just the environment. 16:9 aspect ratio. High quality concept art.`,
           },
         ],
       },
     });
 
-    const parts = response.candidates?.[0]?.content?.parts || [];
-    for (const part of parts) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
+    // Iterate through all parts to find the image part
+    if (response.candidates?.[0]?.content?.parts) {
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+          const base64Data = part.inlineData.data;
+          return `data:${part.inlineData.mimeType};base64,${base64Data}`;
+        }
       }
     }
     return null;
   } catch (error) {
+    console.error("Image generation failed:", error);
     return null;
   }
 };
 
 export const generateSpeech = async (text: string, level: number, isFriendly: boolean): Promise<string | null> => {
   try {
-    if (!hasValidKey()) return null;
     const voices = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'];
     const voice = voices[(level - 1) % voices.length];
     const tonePrefix = level > 7 ? 'Softly: ' : (isFriendly ? 'Kindly: ' : 'Ghostly: ');

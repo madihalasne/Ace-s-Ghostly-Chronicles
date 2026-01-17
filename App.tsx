@@ -208,8 +208,13 @@ const App: React.FC = () => {
     setIsLoading(true);
     const currentLvl = LEVELS[state.level - 1];
     try {
-      const ghost = await getSpectralEncounter(state.level, currentLvl.title, state.inventory, currentLvl.ghostVibe);
-      const roomImg = await generateRoomImage(currentLvl.title, currentLvl.description);
+      // First clear old image to prevent ghosting
+      setRoomImage(null);
+      
+      const [ghost, roomImg] = await Promise.all([
+        getSpectralEncounter(state.level, currentLvl.title, state.inventory, currentLvl.ghostVibe),
+        generateRoomImage(currentLvl.title, currentLvl.description)
+      ]);
       
       if (roomImg) setRoomImage(roomImg);
       
@@ -374,7 +379,7 @@ const App: React.FC = () => {
 
       <div className={`absolute inset-0 transition-all duration-[3000ms] z-0`}>
         {roomImage ? (
-          <img src={roomImage} className="w-full h-full object-cover opacity-60" alt="Room" />
+          <img src={roomImage} className="w-full h-full object-cover opacity-60 animate-fade-in" alt="Room" />
         ) : (
           <div className="w-full h-full bg-zinc-950 flex items-center justify-center">
              <i className="fa-solid fa-house-chimney text-9xl text-black/40" />
@@ -403,9 +408,9 @@ const App: React.FC = () => {
 
         <main className="flex-1 flex flex-col items-center justify-center relative py-4">
           {isLoading ? (
-            <div className="text-center animate-pulse">
-              <i className="fa-solid fa-ghost text-8xl text-indigo-950/20 mb-8" />
-              <p className="spooky-font text-4xl text-indigo-400">Shifting Realities...</p>
+            <div className="text-center">
+              <i className="fa-solid fa-wand-magic-sparkles text-8xl text-indigo-600/30 mb-8 animate-spin-slow" />
+              <p className="spooky-font text-4xl text-indigo-400 animate-pulse">Summoning the Manor...</p>
             </div>
           ) : state.status === 'LEVEL_START' ? (
             <div className="text-center">
@@ -478,8 +483,13 @@ const App: React.FC = () => {
       <style>{`
         @keyframes spectral-drift { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-40px) rotate(5deg); } }
         @keyframes monstrous-loom { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 0.6; } }
+        @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        
         .animate-spectral-drift { animation: spectral-drift 8s ease-in-out infinite; }
         .animate-monstrous-loom { animation: monstrous-loom 6s ease-in-out infinite; }
+        .animate-fade-in { animation: fade-in 2s ease-out forwards; }
+        .animate-spin-slow { animation: spin-slow 12s linear infinite; }
         
         /* Custom Magic Wand Cursor */
         .game-container { 
